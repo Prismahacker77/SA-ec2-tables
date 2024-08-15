@@ -6,17 +6,17 @@ def get_regions():
     return [region['RegionName'] for region in ec2_client.describe_regions()['Regions']]
 
 def get_route_table_target_and_accessibility(ec2, subnet_id):
-    route_tables = ec2.describe_route_tables()['RouteTables']
+    # Describe route tables to find the one associated with the subnet
+    route_tables = ec2.describe_route_tables(Filters=[{'Name': 'association.subnet-id', 'Values': [subnet_id]}])['RouteTables']
+    
     for rt in route_tables:
-        for assoc in rt['Associations']:
-            if assoc.get('SubnetId') == subnet_id:
-                for route in rt['Routes']:
-                    if route.get('DestinationCidrBlock') == '0.0.0.0/0':
-                        target = route.get('GatewayId') or route.get('NatGatewayId') or route.get('TransitGatewayId') or route.get('VpcPeeringConnectionId') or 'None'
-                        if target.startswith('igw-'):
-                            return target, "Yes"
-                        else:
-                            return target, "No"
+        for route in rt['Routes']:
+            if route.get('DestinationCidrBlock') == '0.0.0.0/0':
+                target = route.get('GatewayId') or route.get('NatGatewayId') or route.get('TransitGatewayId') or route.get('VpcPeeringConnectionId') or 'None'
+                if target.startswith('igw-'):
+                    return target, "Yes"
+                else:
+                    return target, "No"
     return 'None', 'No'
 
 def get_instances(ec2, region):
