@@ -5,26 +5,31 @@ def get_regions():
     ec2_client = boto3.client('ec2')
     return [region['RegionName'] for region in ec2_client.describe_regions()['Regions']]
 
-def get_route_table_target(ec2, subnet_id):
-    route_tables = ec2.describe_route_tables(Filters=[{'Name': 'association.subnet-id', 'Values': [subnet_id]}])['RouteTables']
+def prefetch_route_tables(ec2, vpc_id):
+    route_table_targets = {}
+    route_tables = ec2.describe_route_tables(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])['RouteTables']
     
     for rt in route_tables:
         for route in rt['Routes']:
             if route.get('DestinationCidrBlock') == '0.0.0.0/0':
-                if 'GatewayId' in route:
-                    if route['GatewayId'].startswith('igw-'):
-                        return 'IGW'
-                    else:
-                        return route['GatewayId']
+                target = 'None'
+                if 'GatewayId' in route and route['GatewayId'].startswith('igw-'):
+                    target = 'IGW'
                 elif 'NatGatewayId' in route:
-                    return 'NATGW'
+                    target = 'NATGW'
                 elif 'TransitGatewayId' in route:
-                    return 'TGW'
+                    target = 'TGW'
                 elif 'VpcPeeringConnectionId' in route:
-                    return 'VpcPeering'
+                    target = 'VpcPeering'
                 else:
-                    return 'Other'
-    return 'None'
+                    target = route.get('GatewayId') or 'Other'
+                
+                for assoc in rt['Associations']:
+                    subnet_id = assoc.get('SubnetId')
+                    if subnet_id:
+                        route_table_targets[subnet_id] = target
+    
+    return route_table_targets
 
 def get_instances(ec2, region):
     return ec2.describe_instances()['Reservations']
@@ -45,9 +50,10 @@ def scan_ec2_instances():
                 subnet_id = instance.get('SubnetId')
                 public_ip = instance.get('PublicIpAddress')
                 az = instance.get('Placement', {}).get('AvailabilityZone', 'N/A')
-                
-                # Determine route table target
-                route_table_target = get_route_table_target(ec2, subnet_id)
+
+                # Prefetch route table targets for the VPC
+                route_table_targets = prefetch_route_tables(ec2, vpc_id)
+                route_table_target = route_table_targets.get(subnet_id, 'None')
 
                 table.add_row([region, instance_id, public_ip, subnet_id, vpc_id, az, route_table_target])
 
