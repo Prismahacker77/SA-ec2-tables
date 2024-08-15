@@ -31,7 +31,7 @@ def prefetch_route_tables(ec2, vpc_id):
     
     return route_table_targets
 
-def get_instances(ec2, region):
+def get_instances(ec2):
     return ec2.describe_instances()['Reservations']
 
 def scan_ec2_instances():
@@ -41,7 +41,7 @@ def scan_ec2_instances():
 
     for region in regions:
         ec2 = boto3.client('ec2', region_name=region)
-        instances = get_instances(ec2, region)
+        instances = get_instances(ec2)
 
         for reservation in instances:
             for instance in reservation['Instances']:
