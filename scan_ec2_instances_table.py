@@ -5,23 +5,23 @@ def get_regions():
     ec2_client = boto3.client('ec2')
     return [region['RegionName'] for region in ec2_client.describe_regions()['Regions']]
 
-def get_route_table_target(ec2, subnet_id, vpc_id):
-    route_tables = ec2.describe_route_tables(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])['RouteTables']
+def get_route_table_target(ec2, subnet_id):
+    route_tables = ec2.describe_route_tables()['RouteTables']
     for rt in route_tables:
-        for route in rt['Routes']:
-            if route.get('DestinationCidrBlock') == '0.0.0.0/0':
-                for assoc in rt['Associations']:
-                    if assoc.get('SubnetId') == subnet_id:
-                        return route.get('GatewayId', route.get('NatGatewayId', 'None'))
+        for assoc in rt['Associations']:
+            if assoc.get('SubnetId') == subnet_id:
+                for route in rt['Routes']:
+                    if route.get('DestinationCidrBlock') == '0.0.0.0/0':
+                        return route.get('GatewayId') or route.get('NatGatewayId') or route.get('TransitGatewayId') or route.get('VpcPeeringConnectionId') or 'None'
     return 'None'
 
-def is_internet_accessible(ec2, subnet_id, vpc_id):
-    route_tables = ec2.describe_route_tables(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])['RouteTables']
+def is_internet_accessible(ec2, subnet_id):
+    route_tables = ec2.describe_route_tables()['RouteTables']
     for rt in route_tables:
-        for route in rt['Routes']:
-            if route.get('DestinationCidrBlock') == '0.0.0.0/0' and route.get('GatewayId', '').startswith('igw-'):
-                for assoc in rt['Associations']:
-                    if assoc.get('SubnetId') == subnet_id:
+        for assoc in rt['Associations']:
+            if assoc.get('SubnetId') == subnet_id:
+                for route in rt['Routes']:
+                    if route.get('DestinationCidrBlock') == '0.0.0.0/0' and route.get('GatewayId', '').startswith('igw-'):
                         return "Yes"
     return "No"
 
@@ -45,11 +45,8 @@ def scan_ec2_instances():
                 subnet_id = instance.get('SubnetId')
                 public_ip = instance.get('PublicIpAddress')
                 az = instance.get('Placement', {}).get('AvailabilityZone', 'N/A')
-                route_table_target = get_route_table_target(ec2, subnet_id, vpc_id)
-                internet_accessible = "No"
-
-                if vpc_id and subnet_id:
-                    internet_accessible = is_internet_accessible(ec2, subnet_id, vpc_id)
+                route_table_target = get_route_table_target(ec2, subnet_id)
+                internet_accessible = is_internet_accessible(ec2, subnet_id)
 
                 table.add_row([region, ec2_count, instance_id, internet_accessible, public_ip, subnet_id, route_table_target, vpc_id, az])
 
