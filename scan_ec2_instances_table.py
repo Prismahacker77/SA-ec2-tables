@@ -5,8 +5,7 @@ def get_regions():
     ec2_client = boto3.client('ec2')
     return [region['RegionName'] for region in ec2_client.describe_regions()['Regions']]
 
-def get_route_table_target_and_accessibility(ec2, subnet_id):
-    # Filter route tables by association with the subnet
+def get_route_table_target(ec2, subnet_id):
     route_tables = ec2.describe_route_tables(Filters=[{'Name': 'association.subnet-id', 'Values': [subnet_id]}])['RouteTables']
     
     for rt in route_tables:
@@ -14,18 +13,18 @@ def get_route_table_target_and_accessibility(ec2, subnet_id):
             if route.get('DestinationCidrBlock') == '0.0.0.0/0':
                 if 'GatewayId' in route:
                     if route['GatewayId'].startswith('igw-'):
-                        return 'IGW', 'Yes'
+                        return 'IGW'
                     else:
-                        return 'Other Gateway', 'No'
+                        return route['GatewayId']
                 elif 'NatGatewayId' in route:
-                    return 'NATGW', 'No'
+                    return 'NATGW'
                 elif 'TransitGatewayId' in route:
-                    return 'TGW', 'No'
+                    return 'TGW'
                 elif 'VpcPeeringConnectionId' in route:
-                    return 'VpcPeering', 'No'
+                    return 'VpcPeering'
                 else:
-                    return 'Other', 'No'
-    return 'None', 'No'
+                    return 'Other'
+    return 'None'
 
 def get_instances(ec2, region):
     return ec2.describe_instances()['Reservations']
@@ -33,7 +32,7 @@ def get_instances(ec2, region):
 def scan_ec2_instances():
     regions = get_regions()
     table = PrettyTable()
-    table.field_names = ["Region", "Instance ID", "Public IP", "Subnet ID", "VPC ID", "Availability Zone", "Route Table Target", "Internet Accessible"]
+    table.field_names = ["Region", "Instance ID", "Public IP", "Subnet ID", "VPC ID", "Availability Zone", "Route Table Target"]
 
     for region in regions:
         ec2 = boto3.client('ec2', region_name=region)
@@ -47,10 +46,10 @@ def scan_ec2_instances():
                 public_ip = instance.get('PublicIpAddress')
                 az = instance.get('Placement', {}).get('AvailabilityZone', 'N/A')
                 
-                # Determine route table target and internet accessibility
-                route_table_target, internet_accessible = get_route_table_target_and_accessibility(ec2, subnet_id)
+                # Determine route table target
+                route_table_target = get_route_table_target(ec2, subnet_id)
 
-                table.add_row([region, instance_id, public_ip, subnet_id, vpc_id, az, route_table_target, internet_accessible])
+                table.add_row([region, instance_id, public_ip, subnet_id, vpc_id, az, route_table_target])
 
     print(table)
 
