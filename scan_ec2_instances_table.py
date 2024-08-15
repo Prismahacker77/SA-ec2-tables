@@ -11,14 +11,13 @@ def get_route_table_target_and_accessibility(ec2, subnet_id):
     for rt in route_tables:
         for route in rt['Routes']:
             if route.get('DestinationCidrBlock') == '0.0.0.0/0':
-                if 'GatewayId' in route and route['GatewayId'].startswith('igw-'):
-                    return 'IGW', 'Yes'
+                if 'GatewayId' in route:
+                    if route['GatewayId'].startswith('igw-'):
+                        return 'IGW', 'Yes'
+                    else:
+                        return route['GatewayId'], 'No'
                 elif 'NatGatewayId' in route:
                     return 'NATGW', 'No'
-                elif 'TransitGatewayId' in route:
-                    return 'TGW', 'No'
-                elif 'VpcPeeringConnectionId' in route:
-                    return 'VpcPeering', 'No'
                 else:
                     return 'Other', 'No'
     return 'None', 'No'
