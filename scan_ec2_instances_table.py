@@ -35,7 +35,7 @@ def get_instances(ec2, region):
 def scan_ec2_instances():
     regions = get_regions()
     table = PrettyTable()
-    table.field_names = ["Region", "EC2 Count", "Instance ID", "Internet Accessible", "Public IP", "Subnet ID", "VPC ID"]
+    table.field_names = ["Region", "EC2 Count", "Instance ID", "Internet Accessible", "Public IP", "Subnet ID", "VPC ID", "Availability Zone"]
 
     for region in regions:
         ec2 = boto3.client('ec2', region_name=region)
@@ -48,12 +48,13 @@ def scan_ec2_instances():
                 vpc_id = instance.get('VpcId')
                 subnet_id = instance.get('SubnetId')
                 public_ip = instance.get('PublicIpAddress')
+                az = instance.get('Placement', {}).get('AvailabilityZone', 'N/A')
                 internet_accessible = "No"
 
                 if vpc_id and subnet_id:
                     internet_accessible = is_internet_accessible(ec2, subnet_id, vpc_id)
 
-                table.add_row([region, ec2_count, instance_id, internet_accessible, public_ip, subnet_id, vpc_id])
+                table.add_row([region, ec2_count, instance_id, internet_accessible, public_ip, subnet_id, vpc_id, az])
 
     print(table)
 
