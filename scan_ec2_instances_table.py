@@ -22,7 +22,7 @@ def prefetch_route_tables(ec2, vpc_id):
                 elif 'VpcPeeringConnectionId' in route:
                     target = 'VpcPeering'
                 else:
-                    target = route.get('GatewayId') or 'Other'
+                    target = route.get('GatewayId', 'Other')
                 
                 for assoc in rt['Associations']:
                     subnet_id = assoc.get('SubnetId')
@@ -55,6 +55,7 @@ def scan_ec2_instances():
                 route_table_targets = prefetch_route_tables(ec2, vpc_id)
                 route_table_target = route_table_targets.get(subnet_id, 'None')
 
+                # Ensure correct output
                 table.add_row([region, instance_id, public_ip, subnet_id, vpc_id, az, route_table_target])
 
     print(table)
