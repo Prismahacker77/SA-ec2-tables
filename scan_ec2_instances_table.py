@@ -6,6 +6,7 @@ def get_regions():
     return [region['RegionName'] for region in ec2_client.describe_regions()['Regions']]
 
 def get_route_table_target_and_accessibility(ec2, subnet_id):
+    # Filter route tables by association with the subnet
     route_tables = ec2.describe_route_tables(Filters=[{'Name': 'association.subnet-id', 'Values': [subnet_id]}])['RouteTables']
     
     for rt in route_tables:
@@ -15,9 +16,13 @@ def get_route_table_target_and_accessibility(ec2, subnet_id):
                     if route['GatewayId'].startswith('igw-'):
                         return 'IGW', 'Yes'
                     else:
-                        return route['GatewayId'], 'No'
+                        return 'Other Gateway', 'No'
                 elif 'NatGatewayId' in route:
                     return 'NATGW', 'No'
+                elif 'TransitGatewayId' in route:
+                    return 'TGW', 'No'
+                elif 'VpcPeeringConnectionId' in route:
+                    return 'VpcPeering', 'No'
                 else:
                     return 'Other', 'No'
     return 'None', 'No'
@@ -41,6 +46,8 @@ def scan_ec2_instances():
                 subnet_id = instance.get('SubnetId')
                 public_ip = instance.get('PublicIpAddress')
                 az = instance.get('Placement', {}).get('AvailabilityZone', 'N/A')
+                
+                # Determine route table target and internet accessibility
                 route_table_target, internet_accessible = get_route_table_target_and_accessibility(ec2, subnet_id)
 
                 table.add_row([region, instance_id, public_ip, subnet_id, vpc_id, az, route_table_target, internet_accessible])
